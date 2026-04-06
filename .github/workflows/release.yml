@@ -77,7 +77,7 @@ jobs:
           bun run index.js
           cd out
           if [[ "${{ steps.version.outputs.IS_TESTING }}" == "true" ]]; then
-            zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}.zip ./*
+            zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-testing.zip ./*
           else
             zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-release.zip ./*
           fi
@@ -92,7 +92,7 @@ jobs:
           bun run index.js
           cd out
           if [[ "${{ steps.version.outputs.IS_TESTING }}" == "true" ]]; then
-            zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-switchroot.zip ./*
+            zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-testing-switchroot.zip ./*
           else
             zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-release-switchroot.zip ./*
           fi
@@ -107,7 +107,7 @@ jobs:
           bun run index.js
           cd out
           if [[ "${{ steps.version.outputs.IS_TESTING }}" == "true" ]]; then
-            zip -r ../prep-alphasnx-${{ steps.version.outputs.VERSION }}-switchroot.zip ./*
+            zip -r ../prep-alphasnx-${{ steps.version.outputs.VERSION }}-testing-switchroot.zip ./*
           else
             zip -r ../prep-alphasnx-${{ steps.version.outputs.VERSION }}-release-switchroot.zip ./*
           fi
@@ -118,7 +118,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          name: Release ${{ steps.version.outputs.VERSION }}
+          name: ${{ steps.version.outputs.VERSION }}
           prerelease: ${{ steps.version.outputs.IS_TESTING == 'true' }}
           files: |
             update-alphasnx-*.zip
