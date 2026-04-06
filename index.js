@@ -1,19 +1,12 @@
-import { gitGet, localGet, step, next } from "./lib/our.js";
+import { pkg, get, create, edit, remove } from 'unipatch'
 
-// process.env.CACHE_DIR = "mocks/cache";
+import hekate from './recipie/hekate'
+import atmosphere from './recipie/atmosphere'
+import homebrew from './recipie/homebrew'
+const pipeline = pkg()
+    .put(...hekate)
+    .put(...atmosphere)
+    .put(...homebrew)
 
-const atmosphere = gitGet("https://github.com/Atmosphere-NX/Atmosphere");
-
-step("Unpacking Atmosphere", (provider) => {
-    const atmosphereFiles = atmosphere.all();
-    atmosphereFiles.remove("README.md");
-    provider.package.copy(atmosphereFiles);
-});
-
-const exosphereConfig = localGet("mocks/atmosphere/config/exosphere.ini");
-
-step("Adding our exosphere config", (provider) => {
-    provider.package.cd("atmosphere/config").place(exosphereConfig.all());
-});
-
-next(import("./recipes/saltysd.js"));
+// Execute the pipeline
+await pipeline.execute()
