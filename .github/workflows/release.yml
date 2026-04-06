@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            BASE_VERSION=$(jq -r .version package.json)
+            # Find the latest tag that matches v$BASE_VERSION-testing.*
+            # E.g. v0.1.0-testing, v0.1.1-testing ... wait, the requirement says "increment to free 0.0.x based on package.json"
+            # It should be v0.1.0-testing, v0.1.1-testing, v0.1.2-testing
+            # Let's extract major.minor from package.json
+            MAJOR_MINOR=$(echo $BASE_VERSION | cut -d. -f1,2)
+
+            LATEST_TAG=$(git tag -l "v${MAJOR_MINOR}.*-testing" | sort -V | tail -n1)
+
+            if [ -z "$LATEST_TAG" ]; then
+              NEXT_VERSION="v${BASE_VERSION}-testing"
+            else
+              # Extract the patch number
+              LATEST_PATCH=$(echo $LATEST_TAG | sed -E "s/v${MAJOR_MINOR}\.([0-9]+)-testing/\1/")
+              NEXT_PATCH=$((LATEST_PATCH + 1))
+              NEXT_VERSION="v${MAJOR_MINOR}.${NEXT_PATCH}-testing"
+            fi
+
+            echo "Calculated next version: $NEXT_VERSION"
+            echo "VERSION=$NEXT_VERSION" >> $GITHUB_OUTPUT
+            echo "IS_TESTING=true" >> $GITHUB_OUTPUT
+
+            # Create and push the new tag
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git tag $NEXT_VERSION
+            git push origin $NEXT_VERSION
+
+          else
+            # Triggered by tag push
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            echo "VERSION=$TAG_NAME" >> $GITHUB_OUTPUT
+            if [[ "$TAG_NAME" == *"-testing"* ]]; then
+              echo "IS_TESTING=true" >> $GITHUB_OUTPUT
+            else
+              echo "IS_TESTING=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build Standard
+        env:
+          USE_SWITCHROOT: '0'
+          SWITCHROOT_PREP_INSTALL: '0'
+        run: |
+          bun run index.js
+          cd out
+          if [[ "${{ steps.version.outputs.IS_TESTING }}" == "true" ]]; then
+            zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-testing.zip ./*
+          else
+            zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-release.zip ./*
+          fi
+          cd ..
+          rm -rf out
+
+      - name: Build Switchroot
+        env:
+          USE_SWITCHROOT: '1'
+          SWITCHROOT_PREP_INSTALL: '0'
+        run: |
+          bun run index.js
+          cd out
+          if [[ "${{ steps.version.outputs.IS_TESTING }}" == "true" ]]; then
+            zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-testing-switchroot.zip ./*
+          else
+            zip -r ../update-alphasnx-${{ steps.version.outputs.VERSION }}-release-switchroot.zip ./*
+          fi
+          cd ..
+          rm -rf out
+
+      - name: Build Prep Switchroot
+        env:
+          USE_SWITCHROOT: '1'
+          SWITCHROOT_PREP_INSTALL: '1'
+        run: |
+          bun run index.js
+          cd out
+          if [[ "${{ steps.version.outputs.IS_TESTING }}" == "true" ]]; then
+            zip -r ../prep-alphasnx-${{ steps.version.outputs.VERSION }}-testing-switchroot.zip ./*
+          else
+            zip -r ../prep-alphasnx-${{ steps.version.outputs.VERSION }}-release-switchroot.zip ./*
+          fi
+          cd ..
+          rm -rf out
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: ${{ steps.version.outputs.VERSION }}
+          prerelease: ${{ steps.version.outputs.IS_TESTING == 'true' }}
+          files: |
+            update-alphasnx-*.zip
+            prep-alphasnx-*.zip
